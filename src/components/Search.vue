@@ -77,7 +77,6 @@ export default {
       this.fighter = token
     },
     sendFight: function() {
-      console.log({off: this.opponent, def: this.fighter.id})
       this.$store.dispatch('fight', {off: this.opponent, def: this.fighter.id})
       this.fightPopUp = false
     }
