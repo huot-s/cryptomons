@@ -6,32 +6,59 @@ import Web3 from 'web3'
 Vue.use(Vuex)
 
 const names = ["Bulbasaur","Ivysaur","Venusaur","Charmander","Charmeleon","Charizard","Squirtle","Wartortle","Blastoise","Caterpie","Metapod","Butterfree","Weedle","Kakuna","Beedrill","Pidgey","Pidgeotto","Pidgeot","Rattata","Raticate","Spearow","Fearow","Ekans","Arbok","Pikachu","Raichu","Sandshrew","Sandslash","Nidoran♀","Nidorina","Nidoqueen","Nidoran♂","Nidorino","Nidoking","Clefairy","Clefable","Vulpix","Ninetales","Jigglypuff","Wigglytuff","Zubat","Golbat","Oddish","Gloom","Vileplume","Paras","Parasect","Venonat","Venomoth","Diglett","Dugtrio","Meowth","Persian","Psyduck","Golduck","Mankey","Primeape","Growlithe","Arcanine","Poliwag","Poliwhirl","Poliwrath","Abra","Kadabra","Alakazam","Machop","Machoke","Machamp","Bellsprout","Weepinbell","Victreebel","Tentacool","Tentacruel","Geodude","Graveler","Golem","Ponyta","Rapidash","Slowpoke","Slowbro","Magnemite","Magneton","Farfetch'd","Doduo","Dodrio","Seel","Dewgong","Grimer","Muk","Shellder","Cloyster","Gastly","Haunter","Gengar","Onix","Drowzee","Hypno","Krabby","Kingler","Voltorb","Electrode","Exeggcute","Exeggutor","Cubone","Marowak","Hitmonlee","Hitmonchan","Lickitung","Koffing","Weezing","Rhyhorn","Rhydon","Chansey","Tangela","Kangaskhan","Horsea","Seadra","Goldeen","Seaking","Staryu","Starmie","Mr. Mime","Scyther","Jynx","Electabuzz","Magmar","Pinsir","Tauros","Magikarp","Gyarados","Lapras","Ditto","Eevee","Vaporeon","Jolteon","Flareon","Porygon","Omanyte","Omastar","Kabuto","Kabutops","Aerodactyl","Snorlax","Articuno","Zapdos","Moltres","Dratini","Dragonair","Dragonite","Mewtwo","Mew"];
-const CONTRACT_ADDRESS = '0x39dd6caa6213195833EeeBc6925B8A8C378E3Ba4'
-
+//const CONTRACT_ADDRESS = '0x6d4B04b321d051F4d91409F4c63CEFc61E6D9f57'
+const CONTRACT_ADDRESS = '0x1f95d3C245cF46c96637Bb016c4E0c1645485bf8'
 
 var store = new Vuex.Store({
   state: {
     market: [],
     accountToken: [],
     allToken: [],
+    receipt : false,
+    hatchDialog: false,
+    fightDialog: false,
+    tx: {"transactionHash": "0"},
     account: [
-      {name: "Address", value: "xxxxx"},
-      {name: "Balance", value: "xxxx ether"},
-      {name: "Tokens owned", value: "xx"},
-      {name: "Pending withdrawal", value: "xxxxx wei"},
-      {name: "Remaing breeding block", value: "Not breeding"},
-      {name: "Remaing breeding time", value: "Not breeding"}
+      {name: "Address", value: null},
+      {name: "Balance", value: null},
+      {name: "Tokens owned", value: null},
+      {name: "Pending withdrawal", value: null},
+      {name: "Remaing breeding block", value: null},
+      {name: "Remaing breeding time", value: null},
+      {name: "Pokeball Supply", value: null}
     ],
     web3: null,
     crt: null
   },
 
   mutations: {
-    emptyMarket(state) {
-      state.market = []
+    newFight(state) {
+      state.fightDialog = true
+    },
+    newHatch(state) {
+      state.hatchDialog = true
+    },
+    newReceipt(state, payload) {
+      state.tx = payload
+      state.receipt = true
     },
     addTokenToMarket(state, payload) {
       state.market.push(payload)
+    },
+    addTokenToAccount(state, payload) {
+      state.accountToken.push(payload)
+    },
+    addAllToken(state, payload) {
+      state.allToken.push(payload)
+    },
+    cleanMarket(state) {
+      state.market = []
+    },
+    cleanAccountToken(state) {
+      state.accountToken = []
+    },
+    cleanAllToken(state) {
+      state.allToken = []
     },
     initWeb3(state, payload) {
       state.web3 = new Web3(window.ethereum)
@@ -44,50 +71,54 @@ var store = new Vuex.Store({
       state.account[3].value = payload.pendingWithdrawal
       state.account[4].value = payload.breedingBlock
       state.account[5].value = payload.breedingTime
-    },
-    addTokenToAccount(state, payload) {
-      state.accountToken.push(payload)
-    },
-    addAllToken(state, payload) {
-      state.allToken.push(payload)
+      state.account[6].value = payload.pokeballSupply
     }
   },
 
   actions: {
     async updateMarket({commit, state}) { 
-      commit('emptyMarket')
-      const supply = await state.crt.methods.getMarketSupply().call()
+      commit('cleanMarket')
+      const supply = await state.crt.methods.marketSupply().call()
       for (var i = 0; i < supply; i++) {
-        const object = await state.crt.methods.getMarketTokenByIndex(i).call()
-        const price = object[0]
-        const tokenId = object[1]        
-        let attributes = await state.crt.methods.getTokenAttribute(tokenId).call()
+        const tokenId = await state.crt.methods.tokenOfMarketByIndex(i).call()
+        const price = await state.crt.methods.priceOfMarketByIndex(i).call()     
+        let attributes = await state.crt.methods.tokenStats(tokenId).call()
         let addressOwner = await state.crt.methods.ownerOf(tokenId).call()
         commit('addTokenToMarket', {
-          sprite: attributes[2],
-          hp: attributes[0], 
-          atk: attributes[1], 
-          lvl: attributes[3], 
+          sprite: attributes[0],
+          hp: attributes[1], 
+          atk: attributes[2],
+          def: attributes[3], 
+          lvl: attributes[4],
+          breedingSpeed: attributes[5],
+          gender: attributes[6],
+          element: attributes[7], 
           price: price, 
-          name: names[attributes[2]-1], 
+          name: names[attributes[0]-1], 
           id: tokenId,
-          isOwner: addressOwner.toUpperCase() == state.account[0].value.toUpperCase()
+          isOwner: addressOwner.toUpperCase() == state.account[0].value.toUpperCase(),
+          owner: addressOwner
         })        
       }
     },
     async updateAccountToken({commit, state}) { 
+      commit('cleanAccountToken')
       const supply = await state.crt.methods.balanceOf(state.account[0].value).call()
       for (var i = 0; i < supply; i++) {
-        const tokenId = await state.crt.methods.getOwnedTokenbyIndex(i).call()        
-        let attributes = await state.crt.methods.getTokenAttribute(tokenId).call()
-        let onMarket = await state.crt.methods.isOnSale(tokenId).call()
-        let onBreeding = await state.crt.methods.tokenIsOnBreeding(tokenId).call()
+        const tokenId = await state.crt.methods.tokenOfOwnerByIndex(state.account[0].value, i).call()        
+        let attributes = await state.crt.methods.tokenStats(tokenId).call()
+        let onMarket = await state.crt.methods.isOnMarket(tokenId).call()
+        let onBreeding = await state.crt.methods.tokenIsBreeding(tokenId).call()
         commit('addTokenToAccount', {
-          sprite: attributes[2], 
-          hp: attributes[0], 
-          atk: attributes[1], 
-          lvl: attributes[3], 
-          name: names[attributes[2]-1], 
+          sprite: attributes[0], 
+          hp: attributes[1], 
+          atk: attributes[2], 
+          def: attributes[3],
+          lvl: attributes[4], 
+          name: names[attributes[0]-1], 
+          breedingSpeed: attributes[5],
+          gender: attributes[6],
+          element: attributes[7],
           id: tokenId,
           onMarket: onMarket,
           onBreeding: onBreeding
@@ -95,19 +126,24 @@ var store = new Vuex.Store({
       }
     },
     async updateAllToken({commit, state}) { 
-      const supply = await state.crt.methods.getTotalSupply().call()
+      commit('cleanAllToken')
+      const supply = await state.crt.methods.totalSupply().call()
       for (var i = 0; i < supply; i++) {      
-        let attributes = await state.crt.methods.getTokenAttribute(i).call()
+        let attributes = await state.crt.methods.tokenStats(i).call()
         let owner = await state.crt.methods.ownerOf(i).call()
-        let onMarket = await state.crt.methods.isOnSale(i).call()
-        let onBreeding = await state.crt.methods.tokenIsOnBreeding(i).call()
+        let onMarket = await state.crt.methods.isOnMarket(i).call()
+        let onBreeding = await state.crt.methods.tokenIsBreeding(i).call()
         let addressOwner = await state.crt.methods.ownerOf(i).call()
         commit('addAllToken', {
-          sprite: attributes[2], 
-          hp: attributes[0], 
-          atk: attributes[1], 
-          lvl: attributes[3], 
-          name: names[attributes[2]-1], 
+          sprite: attributes[0], 
+          hp: attributes[1], 
+          atk: attributes[2],
+          def: attributes[3], 
+          lvl: attributes[4],
+          breedingSpeed: attributes[5],
+          gender: attributes[6],
+          element: attributes[7],  
+          name: names[attributes[0]-1], 
           id: i,
           owner: owner,
           onMarket: onMarket,
@@ -123,38 +159,90 @@ var store = new Vuex.Store({
     async updateAccountStat({commit, state}) {
       const balance = await state.web3.eth.getBalance(state.account[0].value)
       const tokenNum = await state.crt.methods.balanceOf(state.account[0].value).call()
-      const pendingWithdrawal = await state.crt.methods.getPendingWithdrawal().call({from: state.account[0].value})
-      const isBreeding = await state.crt.methods.playerIsBreeding(state.account[0].value).call()
-      var breedingTime = 'Not breeding'
-      var breedingBlock = 'Not breeding'
+      const pendingWithdrawal = await state.crt.methods.pendingWithdrawals(state.account[0].value).call({from: state.account[0].value})
+      const isBreeding = await state.crt.methods.ownerIsBreeding(state.account[0].value).call()
+      var breedingTime = null
+      var breedingBlock = null
       if (isBreeding) {
-        breedingBlock = await state.crt.methods.getBlockRemaining().call({from: state.account[0].value})
+        breedingBlock = await state.crt.methods.blocksRemaining().call({from: state.account[0].value})
         breedingTime = 'approx ' + breedingBlock * 15 + ' sec'
       }
-       
-      const payload = {balance: balance, tokenNum: tokenNum, pendingWithdrawal: pendingWithdrawal, breedingBlock: breedingBlock, breedingTime: breedingTime}
+      const pokeballSupply = await state.crt.methods.pokeballSupply(state.account[0].value).call()       
+      const payload = {balance: balance, tokenNum: tokenNum, pendingWithdrawal: pendingWithdrawal, breedingBlock: breedingBlock, breedingTime: breedingTime, pokeballSupply: pokeballSupply}
       commit('getAccountStat', payload)
     },
-    async buy({state}, payload) {
-      state.crt.methods.buy(payload.id).send({from: state.account[0].value, value: payload.p})
+    async buy({state, commit, dispatch}, payload) {
+      state.crt.methods.buy(payload.id).send({from: state.account[0].value, value: payload.p}).on('receipt', function(receipt) {
+        commit('newReceipt', receipt)
+        dispatch('updateMarket')
+      })
     },
-    async fight({state}, payload) {
-      state.crt.methods.fight(payload.off, payload.def).send({from: state.account[0].value})
+    async fight({state, commit, dispatch}, payload) {
+      state.crt.methods.fight(payload.off, payload.def).send({from: state.account[0].value}).on('receipt', function() {
+        commit('newFight')
+        dispatch('updateAccountToken')
+      })
     },
-    withdraw({state}) {
-      state.crt.methods.withdraw().send({from: state.account[0].value})
+    withdraw({state, commit, dispatch}) {
+      state.crt.methods.withdraw().send({from: state.account[0].value}).on('receipt', function(receipt) {
+        commit('newReceipt', receipt)
+        dispatch('updateAccountStat')
+      })
     },
-    takeBack({state}, payload) {
-      state.crt.methods.takeOffMarket(payload).send({from: state.account[0].value})
+    takeBack({state, commit, dispatch}, payload) {
+      state.crt.methods.takeOffMarket(payload).send({from: state.account[0].value}).on('receipt', function(receipt) {
+        commit('newReceipt', receipt)
+        dispatch('updateAccountToken')
+        dispatch('updateMarket')
+      })
     },
-    sell({state}, payload) {
-      state.crt.methods.putOnSale(payload.id, state.web3.utils.toHex(parseInt(payload.price*1e18))).send({from: state.account[0].value})
+    sell({state, commit, dispatch}, payload) {
+      state.crt.methods.putOnMarket(payload.id, state.web3.utils.toHex(parseInt(payload.price*1e18))).send({from: state.account[0].value}).on('receipt', function(receipt) {
+        commit('newReceipt', receipt)
+        dispatch('updateAccountStat')
+        dispatch('updateAccountToken')
+        dispatch('updateMarket')
+      })
     },
-    breed({state}, payload) {
-      state.crt.methods.breed(payload.tokenIdA, payload.tokenIdB).send({from: state.account[0].value})
+    breed({state, commit, dispatch}, payload) {
+      state.crt.methods.breed(payload.tokenA.id, payload.tokenB.id).send({from: state.account[0].value}).on('receipt', function(receipt) {
+        commit('newReceipt', receipt)
+        dispatch('updateAccountStat')
+        dispatch('updateAccountToken')
+      })
     },
-    hatch({state}) {
-      state.crt.methods.hatch().send({from: state.account[0].value})
+    hatch({state, commit, dispatch}) {
+      state.crt.methods.hatch().send({from: state.account[0].value}).on('receipt', function() {
+        commit('newHatch')
+        dispatch('updateAccountStat')
+        dispatch('updateAccountToken')
+      })
+    },
+    give({state, commit, dispatch}, payload) {
+      state.crt.methods.give(payload.to, payload.id).send({from: state.account[0].value}).on('receipt', function(receipt) {
+        commit('newReceipt', receipt)
+        dispatch('updateAccountStat')
+        dispatch('updateAccountToken')
+      })
+    },
+    openBall({state, commit, dispatch}, payload) {
+      state.crt.methods.usePokeball(payload).send({from: state.account[0].value}).on('receipt', function(receipt) {
+        commit('newReceipt', receipt)
+        dispatch('updateAccountStat')
+        dispatch('updateAccountToken')
+      })
+    },
+    buyPokeball({state, commit, dispatch}) {
+      state.crt.methods.buyPokeball().send({from: state.account[0].value, value: 0.5*1e18}).on('receipt', function(receipt) {
+        commit('newReceipt', receipt)
+        dispatch('updateAccountStat')
+      })
+    },
+    buyStarterPack({state, commit, dispatch}) {
+      state.crt.methods.buyStarterPack().send({from: state.account[0].value, value: 1.5*1e18}).on('receipt', function(receipt) {
+        commit('newReceipt', receipt)
+        dispatch('updateAccountStat')
+      })
     }
   },
 
