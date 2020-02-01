@@ -222,7 +222,6 @@ export default {
 
   methods: {
     give: function() {
-      console.log({to: this.giveTo, id: this.giveToken.id});
       this.$store.dispatch('give', {to: this.giveTo, id: this.giveToken.id});
     },
     sell: function () {
