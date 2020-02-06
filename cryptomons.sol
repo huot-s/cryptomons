@@ -3,6 +3,7 @@ pragma solidity ^0.5.0;
 
 contract CryptoMons {
 
+    // Helper structures for pokemon attributes and breeding
     enum Type {fire, water, grass}
 
     struct Pokemon {
@@ -22,86 +23,122 @@ contract CryptoMons {
         uint256 hatchBlock;
     }
 
+    // Tracks the ownership of the tokens
     address[] private _tokenOwner;
     mapping (uint256 => uint256) private _ownedTokensIndex;
     mapping (address => uint256[]) private _ownedTokens;
     mapping (address => uint256) private _ownedTokensCount;
 
+    // Tracks how many Pokeball a player has
     mapping (address => uint256) private _pokeballSupply;
 
+    // Mapping storing Pokemon attributes
     mapping (uint256 => Pokemon) private _tokenStats;
-    
+
+    // Models the Marketplace
     mapping (uint256 => bool) private _tokenOnMarket;
     mapping (uint256 => uint256) private _marketTokensIndex;
     uint256[] private _marketPrices;
     uint256[] private _marketTokens;
 
+    // Uselfull to setup a withdrawal pattern for security
     mapping (address => uint256) private _pendingWithdrawals;
 
+    // Some variables to know the admin of the contract and the supplies
     address private _admin;
     uint256 private _totalSupply = 0;
     uint256 private _marketSupply = 0;
 
+    // Helps to manage breeding
     mapping (address => bool) private _ownerIsBreeding;
     mapping (uint256 => bool) private _tokenIsBreeding;
     mapping (address => Breeding) private _breedParam;
 
-
+    // the address instanciating the contract is the admin
     constructor () public {
         _admin = msg.sender;
     }
 
+    // given an address, returns the number of tokens owned
     function balanceOf(address owner) public view returns (uint256) {
         require(owner != address(0), "zero address");
         return _ownedTokensCount[owner];
     }
+
+    // given an tokenId, returns the address of the account owning it
     function ownerOf(uint256 tokenId) public view returns (address) {
         require(tokenId < _totalSupply, "token does not exists");
         address owner = _tokenOwner[tokenId];
         return owner;
     }
+
+    // simply returns the total supply of token
     function totalSupply() public view returns (uint256) {
         return _totalSupply;
     }
+
+    // simply returns the number of token that are on the market
     function marketSupply() public view returns (uint256) {
         return _marketSupply;
     }
+
+    // given an address and an index, returns the the tokenId of the address at position index
     function tokenOfOwnerByIndex(address owner, uint256 index) public view returns(uint256) {
         require(balanceOf(owner) > index, "invalid index");
         return _ownedTokens[owner][index];
     }
+
+    // given an index, returns the tokenId at position index in the market
     function tokenOfMarketByIndex(uint256 index) public view returns(uint256) {
         require(index < _marketSupply, "invalid index");
         return _marketTokens[index];
     }
+
+    // given an index, returns the price at position index in the market
     function priceOfMarketByIndex(uint256 index) public view returns(uint256) {
         require(index < _marketSupply, "invalid index");
         return _marketPrices[index];
     }
+
+    // given a tokenId, returns if the token is on the market
     function isOnMarket(uint256 tokenId) public view returns(bool) {
         return _tokenOnMarket[tokenId];
     }
+
+    // given a tokenId, returns if the token is breeding
     function tokenIsBreeding(uint256 tokenId) public view returns(bool){
         return _tokenIsBreeding[tokenId];
     }
+
+    // given an address, returns whether the player is currently breeding or not
     function ownerIsBreeding(address owner) public view returns(bool){
         return _ownerIsBreeding[owner];
     }
+
+    // given an address, returns how much this person can withdraw to his account
     function pendingWithdrawals(address owner) public view returns(uint256) {
         return _pendingWithdrawals[owner];
     }
+
+    // given a tokenId, returns the attributes of the token
     function tokenStats(uint256 tokenId) public view returns(uint256,uint256,uint256,uint256,uint256,uint256,uint256,Type) {
         Pokemon memory token = _tokenStats[tokenId];
         return (token.pokedexIndex, token.hp, token.atk, token.def, token.lvl, token.breedingBlock, token.gender, token.elementType);
     }
+
+    // returns how many blocks the player has to wait before hatching
     function blocksRemaining() public view returns (int256) {
         require(ownerIsBreeding(msg.sender), "you must be breeding");
         return int(_breedParam[msg.sender].hatchBlock) - int(block.number);
     }
+
+    // given an address returns how many pokeball the player has
     function pokeballSupply(address owner) public view returns(uint256) {
         return _pokeballSupply[owner];
     }
 
+    // only callable by the address _admin
+    // creates a new token from scratch
     function mint(address to, uint256 pokedexIndex, uint256 hp, uint256 atk, uint256 def, uint256 gender, Type elementType) public {
         require(msg.sender == _admin, "you must be admin to mint");
         uint256 tokenId = _totalSupply;
@@ -109,6 +146,10 @@ contract CryptoMons {
         _tokenStats[tokenId] = Pokemon(pokedexIndex, hp, atk, def, 0, 20, gender, elementType);
         _addTokenToOwnerEnumeration(to, tokenId);
     }
+
+    // puts a token on the market for a certain price
+    // only the owner of the token can perform this action
+    // a token already on market or already breeding can't be put on market
     function putOnMarket(uint256 tokenId, uint256 price) public {
         require(ownerOf(tokenId) == msg.sender, "you must be the owner of the token");
         require(price > 0, "must be positive price");
@@ -119,6 +160,10 @@ contract CryptoMons {
         _tokenOnMarket[tokenId] = true;
         _marketSupply++;
     }
+
+    // function to take back a token (remove from the market)
+    // only callable by the owner of the token
+    // the token must be on market to have an effect
     function takeOffMarket(uint256 tokenId) public {
         require(ownerOf(tokenId) == msg.sender, "you must be the owner of the token");
         require(isOnMarket(tokenId), "this token is not on the market");
@@ -126,6 +171,10 @@ contract CryptoMons {
         _marketSupply--;
         _tokenOnMarket[tokenId] = false;
     }
+
+    // buy a token
+    // the token must be on sale
+    // the value sent must match the price in the market
     function buy(uint256 tokenId) external payable {
         require(isOnMarket(tokenId), "this token can't be bought");
         uint256 price = _marketPrices[_marketTokensIndex[tokenId]];
@@ -137,17 +186,28 @@ contract CryptoMons {
         _tokenOnMarket[tokenId] = false;
         _pendingWithdrawals[previousOwner] += price;
     }
+
+    // transfer the ownership of a token to someone else
+    // only callable by the owner of the token
     function give(address to, uint256 tokenId) public {
         require (msg.sender == ownerOf(tokenId), "you must be the owner of the token");
         require(!isOnMarket(tokenId), "you can't give a token that is on market");
         require(!tokenIsBreeding(tokenId), "you can't give a token that is breeding");
         _transferFrom(msg.sender, to, tokenId);
     }
+
+    // function to transfer the ETH accumulated by a player on pendingWithdrawal
+    // msg.sender.transfer() is called after setting the balance to 0
     function withdraw() public {
         uint256 amount = _pendingWithdrawals[msg.sender];
         _pendingWithdrawals[msg.sender] = 0;
         msg.sender.transfer(amount);
     }
+
+    // function to breed two tokens
+    // both tokens must be owned by the caller
+    // the player must have no breeding running
+    // the tokens can't be on market or already breeding
     function breed(uint256 tokenIdA, uint256 tokenIdB) public {
         require(ownerOf(tokenIdA) == msg.sender, "this is not your token");
         require(ownerOf(tokenIdB) == msg.sender, "this is not your token");
@@ -163,6 +223,9 @@ contract CryptoMons {
         uint256 blocks = _tokenStats[tokenIdA].breedingBlock + _tokenStats[tokenIdB].breedingBlock;
         _breedParam[msg.sender] = Breeding(tokenIdA, tokenIdB, block.number + blocks);
     }
+
+    // hatch a egg have the breeding time is ellapsed
+    // we just check that the player is breeding and that the egg is ready
     function hatch() public {
         require(ownerIsBreeding(msg.sender), "not breeding");
         require(_breedParam[msg.sender].hatchBlock <= block.number, "breeding not finished");
@@ -205,6 +268,7 @@ contract CryptoMons {
         _tokenStats[tokenIdB].breedingBlock += 20;
     }
 
+    // performs a fight between two tokens using the fight formula
     function fight(uint256 tokenIdATK, uint256 tokenIdDEF) public {
         require(ownerOf(tokenIdATK) == msg.sender, "not your token");
         require(!tokenIsBreeding(tokenIdATK), "can't attack with a breeding token");
@@ -231,11 +295,15 @@ contract CryptoMons {
             }
         }
     }
+
+    // buy a pokeball to the contract
     function buyPokeball() external payable {
         require(msg.value == 0.5 ether, "a pokeball costs 0.5 ether");
         _pokeballSupply[msg.sender]++;
         _pendingWithdrawals[_admin] += 0.5 ether;
     }
+
+    // opens a ball and mint a pokemon according to starter given in input
     function usePokeball(uint8 starter) public {
         require(_pokeballSupply[msg.sender] > 0, "you need to own pokeball");
         _pokeballSupply[msg.sender]--;
@@ -253,6 +321,8 @@ contract CryptoMons {
         _addTokenToOwnerEnumeration(msg.sender, tokenId);
  
     }
+
+    // buy a starter pck to the contract
     function buyStarterPack() external payable {
         require(msg.value == 1.5 ether, "a pack costs 1.5 ether");
         _pokeballSupply[msg.sender]++;
@@ -266,7 +336,9 @@ contract CryptoMons {
         _pendingWithdrawals[_admin] += 1.5 ether;
     }
 
+    // Internal and private functions
 
+    // transfers the ownership of a token
     function _transferFrom(address from, address to, uint256 tokenId) internal {
         require(tokenId < _totalSupply, "nonexistent token");
         address owner = ownerOf(tokenId);
@@ -283,6 +355,7 @@ contract CryptoMons {
 
         //emit Transfer(from, to, tokenId);
     }
+
     function _mint(address to) internal {
         require(to != address(0), "mint to the zero address");
         _tokenOwner.push(to);

@@ -6,10 +6,13 @@ import Web3 from 'web3'
 Vue.use(Vuex)
 
 const names = ["Bulbasaur","Ivysaur","Venusaur","Charmander","Charmeleon","Charizard","Squirtle","Wartortle","Blastoise","Caterpie","Metapod","Butterfree","Weedle","Kakuna","Beedrill","Pidgey","Pidgeotto","Pidgeot","Rattata","Raticate","Spearow","Fearow","Ekans","Arbok","Pikachu","Raichu","Sandshrew","Sandslash","Nidoran♀","Nidorina","Nidoqueen","Nidoran♂","Nidorino","Nidoking","Clefairy","Clefable","Vulpix","Ninetales","Jigglypuff","Wigglytuff","Zubat","Golbat","Oddish","Gloom","Vileplume","Paras","Parasect","Venonat","Venomoth","Diglett","Dugtrio","Meowth","Persian","Psyduck","Golduck","Mankey","Primeape","Growlithe","Arcanine","Poliwag","Poliwhirl","Poliwrath","Abra","Kadabra","Alakazam","Machop","Machoke","Machamp","Bellsprout","Weepinbell","Victreebel","Tentacool","Tentacruel","Geodude","Graveler","Golem","Ponyta","Rapidash","Slowpoke","Slowbro","Magnemite","Magneton","Farfetch'd","Doduo","Dodrio","Seel","Dewgong","Grimer","Muk","Shellder","Cloyster","Gastly","Haunter","Gengar","Onix","Drowzee","Hypno","Krabby","Kingler","Voltorb","Electrode","Exeggcute","Exeggutor","Cubone","Marowak","Hitmonlee","Hitmonchan","Lickitung","Koffing","Weezing","Rhyhorn","Rhydon","Chansey","Tangela","Kangaskhan","Horsea","Seadra","Goldeen","Seaking","Staryu","Starmie","Mr. Mime","Scyther","Jynx","Electabuzz","Magmar","Pinsir","Tauros","Magikarp","Gyarados","Lapras","Ditto","Eevee","Vaporeon","Jolteon","Flareon","Porygon","Omanyte","Omastar","Kabuto","Kabutops","Aerodactyl","Snorlax","Articuno","Zapdos","Moltres","Dratini","Dragonair","Dragonite","Mewtwo","Mew"];
-//const CONTRACT_ADDRESS = '0x6d4B04b321d051F4d91409F4c63CEFc61E6D9f57'
 const CONTRACT_ADDRESS = '0x1f95d3C245cF46c96637Bb016c4E0c1645485bf8'
 
+
+// CREATION OF THE STORE (GLOBAL STATE FOR ALL THE COMPONENTS)
 var store = new Vuex.Store({
+
+  // global state containg all the tokens and their attributes, the web3 contract object, the player stats, etc
   state: {
     market: [],
     accountToken: [],
@@ -31,6 +34,7 @@ var store = new Vuex.Store({
     crt: null
   },
 
+  // functions that are called by actions of the store and modify the state
   mutations: {
     newFight(state) {
       state.fightDialog = true
@@ -75,6 +79,7 @@ var store = new Vuex.Store({
     }
   },
 
+  // functions that are called by our components and interact with the contract
   actions: {
     async updateMarket({commit, state}) { 
       commit('cleanMarket')
@@ -250,11 +255,13 @@ var store = new Vuex.Store({
   }
 })
 
+
+// INITIALIZE THE STORE CONTENT
 store.dispatch('initWeb3').then(() => {
-  store.dispatch('updateMarket')
-  store.dispatch('updateAccountToken')
-  store.dispatch('updateAccountStat')
-  store.dispatch('updateAllToken')
+  store.dispatch('updateMarket') // load marker
+  store.dispatch('updateAccountToken') // load account tokens
+  store.dispatch('updateAccountStat') // load account stats
+  store.dispatch('updateAllToken') // load the list of all tokens for the 'search' page
 })
 
 export default store
